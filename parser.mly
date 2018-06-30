@@ -12,12 +12,14 @@ let append_params ps e =
 %token RARROW FUN DFUN REC
 %token NIL CONS MATCH WITH PIPE
 %token LSQUARE SEMI RSQUARE
+%token TYPE CORON COMMA
 
 %left PLUS MULT ANDAND OROR
 %nonassoc LT
 
 %token <int> INTV
 %token <Syntax.id> ID
+%token <Syntax.id> TYVAR
 
 %start toplevel
 %type <Syntax.program list> toplevel
@@ -27,6 +29,8 @@ toplevel :
     d=Decl* SEMISEMI { d }
   | LET REC x=ID EQ FUN p=ID RARROW e=Expr SEMISEMI { [RecDecl (x, p, e)] }
   | e=Expr SEMISEMI { [Exp e] }
+  (*| TYPE t=GadtType EQ br=list(PIPE b=GadtBranch { b }) SEMISEMI
+      { [Gadt (t, br)] }*)
 
 Decl :
     LET b=LetBody t=list(AND l=LetBody {l}) { Decl (b::t) }
@@ -91,6 +95,8 @@ AExpr :
       IfExp(Var (dummy_id 0), Var (dummy_id 0), Var (dummy_id 1)))) }
   | LSQUARE h=Expr t=list(SEMI e=Expr{e}) RSQUARE {
       List.fold_left (fun l x -> BinOp (Cons, x, l)) Nil (List.rev (h::t)) }
+  | LPAREN RPAREN { TupleExp [] }
+  | LPAREN h1=Expr COMMA h2=Expr t=list(COMMA e=Expr{e}) RPAREN { TupleExp (h1::h2::t) }
 
 BinOP :
     PLUS { Plus }
@@ -108,6 +114,8 @@ Pattern :
     x=ID { VarP x }
   | NIL { NilP }
   | l=Pattern CONS r=Pattern { ConsP (l, r) }
+  | LPAREN RPAREN { TupleP [] }
+  | LPAREN h1=Pattern COMMA h2=Pattern t=list(COMMA p=Pattern{p}) RPAREN { TupleP (h1::h2::t) }
 
 IfExpr :
     IF c=Expr THEN t=Expr ELSE e=Expr { IfExp (c, t, e) }
@@ -123,3 +131,19 @@ FunExpr :
 
 DFunExpr :
     DFUN x=ID RARROW e=Expr { DFunExp (x, e) }
+
+(*
+TypeAtom :
+    t=ID { TySyntaxName t }
+  | tv=TYVAR { TySyntaxVar tv }
+  | ts=list(t=TypeAtom {t}) { TySyntaxGadt ts }
+  | LPAREN t=Type RPAREN { t }
+
+Type :
+    t=TypeAtom { t }
+  | t1=TypeAtom RARROW t2=Type { TySyntaxArrow (t1, t2) }
+
+GadtBranch :
+    x=ID CORON f=Type { GadtBranch (x, [], f) }
+  | x=ID CORON c=TypeAtom ARROW f=Type { GadtBranch (x, c, f) }
+*)

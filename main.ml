@@ -30,7 +30,7 @@ let typed (env, tyenv) (p, decl) =
       ) (zip idvs tys);
       (newenv, newtyenv)
 
-let opt_typed = typed
+let opt_typed = untyped
 
 let rec need_print ids = function
     [] -> []
@@ -46,6 +46,8 @@ let rec read_eval_print batch ch env tyenv =
   try
     let lexch = Lexing.from_channel ch in
     let decls = Parser.toplevel Lexer.main lexch in
+    print_string ("AST :: \n");
+    List.iter(fun decl -> print_string (p_program decl); print_newline ()) decls;
     let (newenv, newtyenv) =
       List.fold_left opt_typed (env, tyenv) (need_print decls)
     in read_eval_print batch ch newenv newtyenv

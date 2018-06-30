@@ -8,6 +8,7 @@ type pat =
   | VarP of id
   | NilP
   | ConsP of pat * pat
+  | TupleP of pat list
 
 type binOp = Plus | Mult | Cons | Lt
 
@@ -24,14 +25,11 @@ type exp =
   | DFunExp of id * exp
   | AppExp of exp * exp
   | MatchExp of exp * (pat * exp) list
-
-type program = 
-    Exp of exp
-  | Decl of (id * exp) list
-  | RecDecl of id * id * exp
+  | TupleExp of exp list
 
 type tyvar = int
-let print_tyvar tv = print_string "'a"; print_int tv
+let p_tyvar tv = "'a" ^ string_of_int tv
+let print_tyvar tv = print_string (p_tyvar tv)
 
 type ty =
     TyInt
@@ -40,20 +38,53 @@ type ty =
   | TyVar of tyvar
   | TyFun of ty * ty
 
-let parens p x = print_string "("; p x; print_string ")"
-let arrow () = print_string " -> "
-let rec pp_ty = function
-    TyInt -> print_string "int"
-  | TyBool ->  print_string "bool"
-  | TyList (TyFun _ as f) -> parens pp_ty f; print_string " list"
-  | TyList ty -> pp_ty ty; print_string " list"
-  | TyVar tv -> print_tyvar tv
+type tySyntax =
+    TySyntaxVar of id
+  | TySyntaxName of id
+  | TyArrow of id * id
+  | TySyntaxGadt of tySyntax list
+
+(*
+type tyGadt =
+  TyGadt of id list * id
+
+type gadtBranch =
+  GadtBranch of id * tySyntax list * tySyntax
+*)
+  
+type program = 
+    Exp of exp
+  | Decl of (id * exp) list
+  | RecDecl of id * id * exp
+(*  | Gadt of tyGadt * gadtBranch list *)
+
+let parens p x = "(" ^ p x ^ ")"
+let arrow () = " -> "
+let rec p_ty = function
+    TyInt -> "int"
+  | TyBool ->  "bool"
+  | TyList (TyFun _ as f) -> parens p_ty f ^ " list"
+  | TyList ty -> p_ty ty ^ " list"
+  | TyVar tv -> p_tyvar tv
   | TyFun (TyFun _ as f, ty2) -> 
-      parens pp_ty f; arrow (); pp_ty ty2
+      parens p_ty f ^ arrow () ^ p_ty ty2
   | TyFun (TyList _ as l, ty2) -> 
-      parens pp_ty l; arrow (); pp_ty ty2
+      parens p_ty l ^ arrow () ^ p_ty ty2
   | TyFun (ty1, ty2) -> 
-      pp_ty ty1; arrow (); pp_ty ty2
+      p_ty ty1 ^ arrow () ^ p_ty ty2
+
+let pp_ty t = print_string (p_ty t)
+
+let p_exp e = "<exp>"
+let p_decl (x, c) = x ^ " " ^ p_exp c
+(*let p_gadt ty b =
+  p_tygadt ty ^ " = \n" ^ String.concat "\n|" (List.map (fun (x, b) -> x ^ p_ty b) b)*)
+
+let p_program = function
+    Exp e -> "EXP " ^ p_exp e
+  | Decl ls -> "DECL " ^ String.concat ";;\n" (List.map p_decl ls)
+  | RecDecl (f, x, c) -> "REC " ^ f ^ p_decl (x, c)
+ (* | Gadt (ty, b) -> "GADT " ^ p_gadt ty b *)
 
 let fresh_tyvar =
   let counter = ref 0 in

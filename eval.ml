@@ -7,6 +7,8 @@ type exval =
   | ConsV of exval * exval
   | ProcV of id * exp * dnval Environment.t ref
   | DProcV of id * exp
+  | TupleV of exval list
+  (*| Gadt of id * exval list*)
 and dnval = exval
 
 exception Error of string
@@ -26,6 +28,8 @@ let rec string_of_exval = function
      "[" ^ string_of_exval l ^ string_of_cons r ^ "]"
   | ProcV (id, exp, env) -> "<function>"
   | DProcV (id, exp) -> "<dfunction>"
+  | TupleV exps -> "(" ^ String.concat "," (List.map string_of_exval exps) ^ ")"
+(*  | Gadt (id, exps) -> "([" ^ id ^ "] " ^ String.concat " " (List.map (fun x -> string_of_exval x) exps) ^ ")"*)
 
 let pp_val v = print_string (string_of_exval v)
 
@@ -45,6 +49,13 @@ let rec bind_pattern p e = match p, e with
         | Some lb -> (match bind_pattern rp r with
               None -> None
             | Some rb -> Some (lb @ rb)))
+  | TupleP [], TupleV [] -> Some []
+  | TupleP (hp::tp), TupleV (h::t) -> (match bind_pattern hp h with
+          None -> None
+        | Some hb -> (match bind_pattern (TupleP tp) (TupleV t) with
+              None -> None
+            | Some tb -> Some (hb @ tb)
+      ))
   | _ -> None
 
 let rec check_unique_ids = function
@@ -108,8 +119,29 @@ let rec eval_exp env = function
               let newenv = Environment.extend id arg env in
                 eval_exp newenv body
           | _ -> err ("Non-function value is applied"))
+  | TupleExp exps ->
+      TupleV (List.map (fun e -> eval_exp env e) exps)
 
-let eval_decl env = function
+let fresh_x () = "x" ^ string_of_int (fresh_tyvar ())
+
+(*
+let conv_gadtbranch (x, e) =
+  let rec conv e r = match e with
+      TyFun (t, e) ->
+        r (conv e (fun b ->
+          let x = fresh_x () in
+          FunExp (x, BinOp (Cons, Var x, b))
+        ))
+    | _ -> r Nil
+    in
+  (x, conv e (fun x -> x))
+
+let conv_gadt t bs =
+  let ides = List.map conv_gadtbranch bs in
+  Decl ides
+*)
+
+let rec eval_decl env = function
     Exp e -> let v = eval_exp env e in ([("-", v)], env)
   | Decl ides ->
       if check_unique_ids ides then
@@ -125,3 +157,4 @@ let eval_decl env = function
       let newenv = Environment.extend id f env in
       dummyenv := newenv;
       ([(id, f)], Environment.extend id f env)
+  (*| Gadt (t, bs) -> eval_decl env (conv_gadt t bs) *)
