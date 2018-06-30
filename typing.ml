@@ -36,6 +36,8 @@ let rec unify = function
           TyFun (td1, tc1), TyFun(td2, tc2) ->
             unify ((td1, td2) :: (tc1, tc2) :: rest)
         | TyList tv1, TyList tv2 -> unify ((tv1, tv2) :: rest)
+        | TyTuple (h1::t1), TyTuple (h2::t2) -> unify ((h1, h2) :: (TyTuple t1, TyTuple t2) :: rest)
+        | TyTuple [], TyTuple [] -> unify rest
         | TyVar tv, t ->
             if MySet.member tv (freevar_ty t)
               then err ("recursion type")
@@ -71,6 +73,16 @@ let rec eps_bind cty p = match p with
       let (xb,  xe ) = eps_bind t x in
       let (xsb, xse) = eps_bind (TyList t) xs in
         (xb @ xsb, (TyList t, cty) :: xe @ xse)
+  | TupleP xs ->
+      let res = List.map (fun p ->
+        let t = fresh_ty () in
+        let (sub, e) = eps_bind t p in
+        (t, sub, e)) xs in
+      let ts = List.map (fun (t,_,_)->t) res in
+      let subs = List.concat (List.map (fun (_,s,_)->s) res) in
+      let es = List.concat (List.map (fun (_,_,e)->e) res) in
+        (subs, (TyTuple ts, cty) :: es)
+      
 
 let rec eps_env_branch (cty:ty) (tyenv:tysc Environment.t) (p:pat) =
   let (binds, eps_b) = eps_bind cty p in
@@ -142,6 +154,12 @@ let rec ty_exp (tyenv : tysc Environment.t) = function
           (resty, ety) :: eps_of_subst es @ b_eps @ eps'
       ) (eps_of_subst cs) bs in
       let res = unify eps in (res, subst_type res resty)
+  | TupleExp es ->
+     let s_tys = List.map (ty_exp tyenv) es in
+     let eps = List.concat (List.map (fun (s, ty) -> eps_of_subst s) s_tys) in
+     let res = unify eps in
+     let tys = List.map (fun (s, ty) -> subst_type res ty) s_tys in
+     (res, TyTuple tys)
 
 let ty_decl tyenv = function
     Exp e -> let (_, ty) = ty_exp tyenv e in (tyenv, [ty])

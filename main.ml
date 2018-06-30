@@ -30,7 +30,7 @@ let typed (env, tyenv) (p, decl) =
       ) (zip idvs tys);
       (newenv, newtyenv)
 
-let opt_typed = untyped
+let opt_typed = typed
 
 let rec need_print ids = function
     [] -> []

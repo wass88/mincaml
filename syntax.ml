@@ -37,6 +37,7 @@ type ty =
   | TyList of ty
   | TyVar of tyvar
   | TyFun of ty * ty
+  | TyTuple of ty list
 
 type tySyntax =
     TySyntaxVar of id
@@ -72,6 +73,8 @@ let rec p_ty = function
       parens p_ty l ^ arrow () ^ p_ty ty2
   | TyFun (ty1, ty2) -> 
       p_ty ty1 ^ arrow () ^ p_ty ty2
+  | TyTuple [] -> "unit"
+  | TyTuple l -> String.concat "*" (List.map p_ty l)
 
 let pp_ty t = print_string (p_ty t)
 
