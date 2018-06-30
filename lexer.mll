@@ -57,6 +57,10 @@ rule main = parse
     { let id = Lexing.lexeme lexbuf in
       Parser.TYVAR id
      }
+| ['A'-'Z'] ['a'-'z' '0'-'9' '_' '\'']*
+    { let id = Lexing.lexeme lexbuf in
+      Parser.CTOR id
+     }
 | eof { exit 0 }
 
 and commentout = parse

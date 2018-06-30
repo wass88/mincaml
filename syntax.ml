@@ -9,6 +9,7 @@ type pat =
   | NilP
   | ConsP of pat * pat
   | TupleP of pat list
+  | GadtP of id * pat option
 
 type binOp = Plus | Mult | Cons | Lt
 
@@ -26,6 +27,7 @@ type exp =
   | AppExp of exp * exp
   | MatchExp of exp * (pat * exp) list
   | TupleExp of exp list
+  | GadtExp of id * exp option
 
 type tyvar = int
 let p_tyvar tv = "'a" ^ string_of_int tv
@@ -42,22 +44,30 @@ type ty =
 type tySyntax =
     TySyntaxVar of id
   | TySyntaxName of id
-  | TyArrow of id * id
-  | TySyntaxGadt of tySyntax list
+  | TySyntaxFun of tySyntax * tySyntax
+  | TySyntaxTuple of tySyntax list
+  | TySyntaxGadt of tySyntax * id
 
-(*
-type tyGadt =
-  TyGadt of id list * id
+let rec p_tysyn = function
+    TySyntaxVar x -> x
+  | TySyntaxName x -> x
+  | TySyntaxFun (x, y) -> "(" ^ p_tysyn x ^ "->" ^ p_tysyn y ^ ")"
+  | TySyntaxTuple xs -> "(" ^ String.concat "*" (List.map p_tysyn xs) ^ ")"
+  | TySyntaxGadt (t, x) -> p_tysyn t ^ "->" ^ x
 
 type gadtBranch =
-  GadtBranch of id * tySyntax list * tySyntax
-*)
+    GadtLeaf of id * tySyntax * id
+  | GadtBranch of id * tySyntax * tySyntax * id
+
+let p_gadtbranch = function
+    GadtLeaf (x, ty, y) -> x ^ ":" ^ p_tysyn ty ^ " " ^ y
+  | GadtBranch (x, tyd, ty, y) -> x ^ ":" ^ p_tysyn tyd ^ "->" ^ p_tysyn ty ^ " " ^ y
   
 type program = 
     Exp of exp
   | Decl of (id * exp) list
   | RecDecl of id * id * exp
-(*  | Gadt of tyGadt * gadtBranch list *)
+  | Gadt of id * gadtBranch list
 
 let parens p x = "(" ^ p x ^ ")"
 let arrow () = " -> "
@@ -80,14 +90,14 @@ let pp_ty t = print_string (p_ty t)
 
 let p_exp e = "<exp>"
 let p_decl (x, c) = x ^ " " ^ p_exp c
-(*let p_gadt ty b =
-  p_tygadt ty ^ " = \n" ^ String.concat "\n|" (List.map (fun (x, b) -> x ^ p_ty b) b)*)
+let p_gadt ty b =
+  ty ^ " = \n" ^ String.concat "\n|" (List.map p_gadtbranch b)
 
 let p_program = function
     Exp e -> "EXP " ^ p_exp e
   | Decl ls -> "DECL " ^ String.concat ";;\n" (List.map p_decl ls)
   | RecDecl (f, x, c) -> "REC " ^ f ^ p_decl (x, c)
- (* | Gadt (ty, b) -> "GADT " ^ p_gadt ty b *)
+  | Gadt (ty, b) -> "GADT " ^ p_gadt ty b
 
 let fresh_tyvar =
   let counter = ref 0 in

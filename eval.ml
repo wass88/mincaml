@@ -8,7 +8,7 @@ type exval =
   | ProcV of id * exp * dnval Environment.t ref
   | DProcV of id * exp
   | TupleV of exval list
-  (*| Gadt of id * exval list*)
+  | GadtV of id * exval option
 and dnval = exval
 
 exception Error of string
@@ -29,7 +29,8 @@ let rec string_of_exval = function
   | ProcV (id, exp, env) -> "<function>"
   | DProcV (id, exp) -> "<dfunction>"
   | TupleV exps -> "(" ^ String.concat "," (List.map string_of_exval exps) ^ ")"
-(*  | Gadt (id, exps) -> "([" ^ id ^ "] " ^ String.concat " " (List.map (fun x -> string_of_exval x) exps) ^ ")"*)
+  | GadtV (id, None) -> id
+  | GadtV (id, Some exp) -> "(" ^ id ^ string_of_exval exp ^ ")"
 
 let pp_val v = print_string (string_of_exval v)
 
@@ -56,6 +57,8 @@ let rec bind_pattern p e = match p, e with
               None -> None
             | Some tb -> Some (hb @ tb)
       ))
+  | GadtP (x, None), GadtV (y, None) when x = y -> Some []
+  | GadtP (x, Some p), GadtV (y, Some v) when x = y -> bind_pattern p v
   | _ -> None
 
 let rec check_unique_ids = function
@@ -121,25 +124,18 @@ let rec eval_exp env = function
           | _ -> err ("Non-function value is applied"))
   | TupleExp exps ->
       TupleV (List.map (fun e -> eval_exp env e) exps)
+  | GadtExp (x, None) -> GadtV (x, None)
+  | GadtExp (x, Some exp) -> GadtV (x, Some (eval_exp env exp))
 
 let fresh_x () = "x" ^ string_of_int (fresh_tyvar ())
 
-(*
-let conv_gadtbranch (x, e) =
-  let rec conv e r = match e with
-      TyFun (t, e) ->
-        r (conv e (fun b ->
-          let x = fresh_x () in
-          FunExp (x, BinOp (Cons, Var x, b))
-        ))
-    | _ -> r Nil
-    in
-  (x, conv e (fun x -> x))
+let conv_gadtbranch = function
+    GadtLeaf (x, _, _) -> (x, GadtExp (x, None))
+  | GadtBranch (x, _, _, _) -> 
+      let y = fresh_x () in (x, FunExp (y, GadtExp (x, Some (Var y))))
 
-let conv_gadt t bs =
-  let ides = List.map conv_gadtbranch bs in
-  Decl ides
-*)
+let conv_gadt bs =
+  Decl (List.map conv_gadtbranch bs)
 
 let rec eval_decl env = function
     Exp e -> let v = eval_exp env e in ([("-", v)], env)
@@ -157,4 +153,4 @@ let rec eval_decl env = function
       let newenv = Environment.extend id f env in
       dummyenv := newenv;
       ([(id, f)], Environment.extend id f env)
-  (*| Gadt (t, bs) -> eval_decl env (conv_gadt t bs) *)
+  | Gadt (t, bs) -> eval_decl env (conv_gadt bs)

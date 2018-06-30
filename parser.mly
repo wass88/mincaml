@@ -20,6 +20,7 @@ let append_params ps e =
 %token <int> INTV
 %token <Syntax.id> ID
 %token <Syntax.id> TYVAR
+%token <Syntax.id> CTOR
 
 %start toplevel
 %type <Syntax.program list> toplevel
@@ -29,8 +30,7 @@ toplevel :
     d=Decl* SEMISEMI { d }
   | LET REC x=ID EQ FUN p=ID RARROW e=Expr SEMISEMI { [RecDecl (x, p, e)] }
   | e=Expr SEMISEMI { [Exp e] }
-  (*| TYPE t=GadtType EQ br=list(PIPE b=GadtBranch { b }) SEMISEMI
-      { [Gadt (t, br)] }*)
+  | TYPE x=ID EQ h=GadtBranch br=list(PIPE b=GadtBranch { b }) SEMISEMI { [Gadt (x, h::br)] }
 
 Decl :
     LET b=LetBody t=list(AND l=LetBody {l}) { Decl (b::t) }
@@ -83,6 +83,7 @@ AExpr :
   | FALSE  { BLit false }
   | NIL    { Nil }
   | i=ID   { Var i }
+  | i=CTOR { Var i }
   | LPAREN e=Expr RPAREN { e }
   | LPAREN o=BinOP RPAREN {
     FunExp(dummy_id 0, FunExp(dummy_id 1,
@@ -116,6 +117,8 @@ Pattern :
   | l=Pattern CONS r=Pattern { ConsP (l, r) }
   | LPAREN RPAREN { TupleP [] }
   | LPAREN h1=Pattern COMMA h2=Pattern t=list(COMMA p=Pattern{p}) RPAREN { TupleP (h1::h2::t) }
+  | x=CTOR { GadtP (x, None) }
+  | x=CTOR p=Pattern { GadtP (x, Some p) }
 
 IfExpr :
     IF c=Expr THEN t=Expr ELSE e=Expr { IfExp (c, t, e) }
@@ -132,18 +135,16 @@ FunExpr :
 DFunExpr :
     DFUN x=ID RARROW e=Expr { DFunExp (x, e) }
 
-(*
 TypeAtom :
     t=ID { TySyntaxName t }
   | tv=TYVAR { TySyntaxVar tv }
-  | ts=list(t=TypeAtom {t}) { TySyntaxGadt ts }
+  | t=TypeAtom g=ID { TySyntaxGadt (t, g) }
   | LPAREN t=Type RPAREN { t }
 
 Type :
-    t=TypeAtom { t }
-  | t1=TypeAtom RARROW t2=Type { TySyntaxArrow (t1, t2) }
-
+    td=TypeAtom RARROW tc=Type { TySyntaxFun (td, tc) }
+  | h=TypeAtom t=list(MULT a=TypeAtom {a}) { TySyntaxTuple (h :: t) }
+    
 GadtBranch :
-    x=ID CORON f=Type { GadtBranch (x, [], f) }
-  | x=ID CORON c=TypeAtom ARROW f=Type { GadtBranch (x, c, f) }
-*)
+    x=CTOR CORON f=TypeAtom y=ID { GadtLeaf (x, f, y) }
+  | x=CTOR CORON c=TypeAtom RARROW f=TypeAtom y=ID { GadtBranch (x, c, f, y) }
