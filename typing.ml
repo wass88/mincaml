@@ -171,4 +171,12 @@ let ty_decl tyenv = function
         ([], tyenv, []) ides in
       let res = unify eps in
         (tyenv, List.map (subst_type res) (List.rev tys))
-  | RecDecl _ -> err ("Not Implemented!")
+  | RecDecl (f, x, exp) ->
+      let ft = fresh_ty() in   
+      let newenv = Environment.extend f (tysc_of_ty ft) tyenv in
+      let (s, ty) = ty_exp newenv (FunExp (x, exp)) in
+      let eps = (ft, ty) :: (eps_of_subst s) in
+      let res = unify eps in
+      let sty = subst_type res ty in
+      let resenv = Environment.extend f (closure sty tyenv s) tyenv in
+        (resenv, [sty])
